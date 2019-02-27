@@ -53,16 +53,13 @@
   <script>
     var flagPerspective = true; // "global var"
 
+    const canvas = document.getElementById("master");
+
+    if(!canvas){
+      alert("Error: Canvas not found! Please try reloading the page and use a PC with the latest version of Chrome or Firefox.");
+    }
+
     function main() {
-      const canvas = document.getElementById("master");
-
-      if(!canvas){
-        console.log("Canvas element with specified ID ('master') cannot be found.");
-      }
-
-      if(!canvas.getContext('webgl2')){
-	alert("Your browser does not support WebGL's latest version. Please use a PC with updated Chrome or Firefox.");
-      }
 
       const gl = initWebGL(canvas, true);
       const vertexShaderSource = document.getElementById('vertex-shader').text;
@@ -252,8 +249,25 @@
         flagPerspective = boolValue;
     }
 
+    function pageLoaded(){
+	try{
+		glContext = canvas.getContext("webgl2");
+	} catch(x){
+		glContext = null;
+	}
+
+	if(glContext){
+		// do nothing
+	} else if(window.WebGL2RenderingContext){
+		alert("Error: WebGL2 is supported by your browser but is it disabled or unavailable. Make sure your browser is up-to-date.");
+	} else{
+		alert("Error: WebGL2 is not supported by your browser. Please use a PC with the latest version of Chrome or Firefox.");
+	}
+    }
+
+    pageLoaded();
     // call the main program
-    main()
+    main();
   </script>
 </body>
 </html>
