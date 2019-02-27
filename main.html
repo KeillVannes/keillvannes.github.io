@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>世界革命論　『ＴＨＥ　ＷＯＲＬＤ　ＲＥＶＯＬＵＴＩＯＮ』</title><!--// Super Spinning 3D Dodecahedron ZX</title> -->
+  <meta name="description" content="カオスだよ？カオスだね！">
+  <meta name="author" content="kil">
+  <meta charset="utf-8"/>
+</head>
+
+<body>
+  <canvas id="master" width="600px" height="600px"></canvas>
+  <p>
+      <button onclick="changeToPerspective(true)">
+          Perspective
+      </button>
+      <button onclick="changeToPerspective(false)">
+          Parallel
+      </button>
+  </p>
+  <!-- WebGL setup libraries -->
+  <script src="./utils/webgl-init.js"></script>
+  <script src="./utils/webgl-debug.js"></script>
+  <script src="./utils/webgl-utils.js"></script>
+  <script src="./utils/gl-matrix.js"></script>
+
+  <!-- shader programs -->
+  <script id="vertex-shader" type="notjs">#version 300 es
+    in vec4 a_position;
+
+    uniform mat4 u_model_matrix;
+    uniform mat4 u_view_matrix;
+    uniform mat4 u_projection_matrix;
+
+    void main() {
+      // produce camera coordinates using view matrix; after world coords
+      gl_Position = u_projection_matrix * u_view_matrix * u_model_matrix * a_position;
+    }
+  </script>
+
+  <script id="fragment-shader" type="notjs">#version 300 es
+    precision mediump float;
+
+    uniform vec4 u_color;
+
+    out vec4 outColor;
+
+    void main() {
+      outColor = u_color;
+    }
+  </script>
+
+
+  <script>
+    var flagPerspective = true; // "global var"
+
+    function main() {
+      const canvas = document.getElementById("master");
+
+      if(!canvas){
+        console.log("Canvas element with specified ID ('master') cannot be found.");
+      }
+
+      const gl = initWebGL(canvas, true);
+      const vertexShaderSource = document.getElementById('vertex-shader').text;
+      const fragmentShaderSource = document.getElementById('fragment-shader').text;
+      const vertexShader = initShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+      const fragmentShader = initShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+      const program = initProgram(gl, vertexShader, fragmentShader);
+
+      gl.useProgram(program);
+
+      const aPositionPointer = gl.getAttribLocation(program, 'a_position');
+      const aPointSizePointer = gl.getAttribLocation(program, 'a_point_size');
+      const uColorPointer = gl.getUniformLocation(program, 'u_color');
+      const uModelMatrixPointer = gl.getUniformLocation(program, 'u_model_matrix');
+      const uViewMatrixPointer = gl.getUniformLocation(program, 'u_view_matrix');
+      const uProjectionMatrixPointer = gl.getUniformLocation(program, 'u_projection_matrix');
+
+      // initialize vertex data
+
+      // calculate vertex constants
+      let size = 0.4;
+      let pointsPerFace = 9;
+      const PHI = (1.0 + Math.sqrt(5.0)) / 2.0;
+
+      let a = 1 * size;
+      let b = (1 / PHI) * size;
+      let c = ((1 * 2.0) - PHI) * size;
+
+      // 12 faces with 5 vertices each
+      dodeFaces = [
+          [c,0,a, -c,0,a, -b,b,b, 0,a,c, b,b,b],
+          [-c,0,a, c,0,a, b,-b,b, 0,-a,c, -b,-b,b],
+          [c,0,-a, -c,0,-a, -b,-b,-b, 0,-a,-c, b,-b,-b],
+          [-c,0,-a, c,0,-a, b,b,-b, 0,a,-c, -b,b,-b],
+          [0,a,-c, 0,a,c, b,b,b, a,c,0, b,b,-b],
+          [0,a,c, 0,a,-c, -b,b,-b, -a,c,0, -b,b,b],
+          [0,-a,-c, 0,-a,c, -b,-b,b, -a,-c,0, -b,-b,-b],
+          [0,-a,c, 0,-a,-c, b,-b,-b, a,-c,0, b,-b,b],
+          [a,c,0, a,-c,0, b,-b,b, c,0,a, b,b,b],
+          [a,-c,0, a,c,0, b,b,-b, c,0,-a, b,-b,-b],
+          [-a,c,0, -a,-c,0, -b,-b,-b, -c,0,-a, -b,b,-b],
+          [-a,-c,0, -a,c,0, -b,b,b, -c,0,a, -b,-b,b]
+      ];
+
+      // colors for each face
+      let dodeColors = [
+          [1,0,0,1],    // red
+          [0,1,0,1],    // green
+          [0,0,1,1],    // blue
+          [1,1,0,1],    // yellow
+          [1,0,1,1],    // magenta
+          [0,1,1,1],    // cyan
+
+          [.7,.3,.3,1],
+          [.3,.7,.3,1],
+          [.3,.3,.7,1],
+          [.7,.7,.3,1],
+          [.7,.3,.7,1],
+          [.3,.7,.7,1],
+      ];
+
+      // color for background
+      gl.clearColor(0, 0, 0, 1);
+
+      // generate shape vertices
+      // triangles per face: [0, 1, 2],   [0, 3, 2],   [0, 3, 4]
+      let dodeVertices = [];
+      for (let i = 0; i < dodeFaces.length; i++){
+            // 0, 1, 2
+            dodeVertices.push(dodeFaces[i][0],
+                              dodeFaces[i][1],
+                              dodeFaces[i][2],
+                              1.0);
+            dodeVertices.push(dodeFaces[i][3],
+                              dodeFaces[i][4],
+                              dodeFaces[i][5],
+                              1.0);
+            dodeVertices.push(dodeFaces[i][6],
+                              dodeFaces[i][7],
+                              dodeFaces[i][8],
+                              1.0);
+            // 0, 3, 2
+            dodeVertices.push(dodeFaces[i][0],
+                              dodeFaces[i][1],
+                              dodeFaces[i][2],
+                              1.0);
+            dodeVertices.push(dodeFaces[i][9],
+                              dodeFaces[i][10],
+                              dodeFaces[i][11],
+                              1.0);
+            dodeVertices.push(dodeFaces[i][6],
+                              dodeFaces[i][7],
+                              dodeFaces[i][8],
+                              1.0);
+            // 0, 3, 4
+            dodeVertices.push(dodeFaces[i][0],
+                              dodeFaces[i][1],
+                              dodeFaces[i][2],
+                              1.0);
+            dodeVertices.push(dodeFaces[i][9],
+                              dodeFaces[i][10],
+                              dodeFaces[i][11],
+                              1.0);
+            dodeVertices.push(dodeFaces[i][12],
+                              dodeFaces[i][13],
+                              dodeFaces[i][14],
+                              1.0);
+      }
+
+      // load vertex data to gpu
+      let dodeBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, dodeBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(dodeVertices), gl.STATIC_DRAW);
+      gl.vertexAttribPointer(aPositionPointer, 4, gl.FLOAT, false, 0, 0);
+      gl.enableVertexAttribArray(aPositionPointer);
+      gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+      // enable depth test
+      gl.enable(gl.DEPTH_TEST);
+
+      // define degrees' initial value. and degree increment value
+      var degrees = 0;
+      const DEGREE_STEP = 3;
+
+      animate();
+
+      function animate(){
+          // clear frame
+          gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+          // setup model matrix and rotate it
+          let modelMatrix = glMatrix.mat4.create();
+          glMatrix.mat4.rotateX(modelMatrix, modelMatrix,
+                                glMatrix.glMatrix.toRadian(degrees*0.5));
+          glMatrix.mat4.rotateY(modelMatrix, modelMatrix,
+                                glMatrix.glMatrix.toRadian(degrees*0.3));
+          glMatrix.mat4.rotateZ(modelMatrix, modelMatrix,
+                                glMatrix.glMatrix.toRadian(degrees&0.2));
+
+          // setup view matrix
+          let viewMatrix = glMatrix.mat4.create();
+          glMatrix.mat4.lookAt(viewMatrix,[0,0,1,1],[0,0,0,1],[0,1,0,0]);
+
+          // setup projection matrix
+          let projectionMatrix = glMatrix.mat4.create();
+
+          if (flagPerspective == true){
+              // parameters to set perspective projection
+              let fov = glMatrix.glMatrix.toRadian(460); // field of view
+              let aspectRatio = canvas.width/canvas.height;
+              let nearClippingPlane = 0.01;
+              let farClippingPlane = 100;
+              glMatrix.mat4.perspective(projectionMatrix, fov, aspectRatio, nearClippingPlane, farClippingPlane);
+          }
+          else{
+              // parameters to set parallel projection
+              let left = -1;
+              let right = 1;
+              let bottom = -1;
+              let top = 1;
+              let near = 0;
+              let far =1;
+              glMatrix.mat4.ortho(projectionMatrix, left, right, bottom, top, near, far);
+          }
+
+          // load uniforms
+          gl.uniformMatrix4fv(uModelMatrixPointer, false, new Float32Array(modelMatrix));
+          gl.uniformMatrix4fv(uViewMatrixPointer, false, new Float32Array(viewMatrix));
+          gl.uniformMatrix4fv(uProjectionMatrixPointer, false, new Float32Array(projectionMatrix));
+
+          // draw figures
+
+          for (let i = 0; i < dodeFaces.length; i++){
+              // draw one face at a time
+              gl.uniform4fv(uColorPointer, dodeColors[i%12]);
+              gl.bindBuffer(gl.ARRAY_BUFFER, dodeBuffer);
+              gl.drawArrays(gl.TRIANGLES, i*pointsPerFace, pointsPerFace);
+          }
+
+          degrees = degrees + 2.67;
+
+          requestAnimFrame(animate);
+      }
+    }
+
+    function changeToPerspective(boolValue){
+        flagPerspective = boolValue;
+    }
+
+    // call the main program
+    main()
+  </script>
+</body>
+</html>
