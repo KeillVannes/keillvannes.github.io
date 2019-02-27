@@ -60,6 +60,10 @@
         console.log("Canvas element with specified ID ('master') cannot be found.");
       }
 
+      if(!canvas.getContext('webgl2')){
+	alert("Your browser does not support WebGL's latest version. Please use a PC with updated Chrome or Firefox.");
+      }
+
       const gl = initWebGL(canvas, true);
       const vertexShaderSource = document.getElementById('vertex-shader').text;
       const fragmentShaderSource = document.getElementById('fragment-shader').text;
