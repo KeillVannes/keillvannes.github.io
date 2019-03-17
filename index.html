@@ -1,22 +1,78 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>世界革命論　『ＴＨＥ　ＷＯＲＬＤ　ＲＥＶＯＬＵＴＩＯＮ』</title><!--// Super Spinning 3D Dodecahedron ZX</title> -->
+  <title>世界革命論　『ＴＨＥ　ＷＯＲＬＤ　ＲＥＶＯＬＵＴＩＯＮ』</title>
   <meta name="description" content="カオスだよ？カオスだね！">
   <meta name="author" content="keill">
   <meta charset="utf-8"/>
 </head>
 
-<body>
-  <canvas id="master" width="600px" height="600px"></canvas>
-  <p>
-      <button onclick="changeToPerspective(true)">
-          Perspective
-      </button>
-      <button onclick="changeToPerspective(false)">
-          Parallel
-      </button>
-  </p>
+<body style="background-color: white">
+  <div  style="float: left">
+    <canvas id="master" width="600px" height="600px" ></canvas>
+  </div>
+  <div style="float: left; padding-left: 15px">
+    <p>
+      Material Ambient:
+      <input type="color" id="material-ambient" value="#007f00" autocomplete="off">
+      <input type="text" id="material-ambient-value" value="#007f00" autocomplete="off" disabled>
+    </p>
+    <p>
+      Material Diffuse:
+      <input type="color" id="material-diffuse" value="#00ff00" autocomplete="off">
+      <input type="text" id="material-diffuse-value" value="#00ff00" autocomplete="off" disabled>
+    </p>
+    <p>
+      Material Specular:
+      <input type="color" id="material-specular" value="#e6ffe6" autocomplete="off">
+      <input type="text" id="material-specular-value" value="#e6ffe6" autocomplete="off" disabled>
+    </p>
+    <p>
+      Shininess:
+      <input type="range" min="-1.0" max="10.0" id="material-shininess" step="0.5" value="5.0" autocomplete="off">
+      <input type="text" id="material-shininess-value" value="5" autocomplete="off" disabled>
+    </p>
+    <p>
+      <input type="checkbox" id="ambient-flag" autocomplete="off">
+      <label for="ambient-flag">Ambient</label> 
+      <input type="checkbox" id="diffuse-flag" autocomplete="off" checked>
+      <label for="diffuse-flag">Diffuse</label>
+      <input type="checkbox" id="specular-flag" autocomplete="off">
+      <label for="specular-flag">Specular</label>
+      <input type="checkbox" id="animate-flag" autocomplete="off" checked>
+      <label for="animate-flag">Animate</label>
+    </p>
+    <p>
+      Light Ambient:
+      <input type="color" id="light-ambient" value="#4d4d4d" autocomplete="off">
+      <input type="text" id="light-ambient-value" value="#4d4d4d" autocomplete="off" disabled>
+    </p>
+    <p>
+      Light Diffuse:
+      <input type="color" id="light-diffuse" value="#00ffff" autocomplete="off">
+      <input type="text" id="light-diffuse-value" value="#00ffff" autocomplete="off" disabled>
+    </p>
+    <p>
+      Light Specular:
+      <input type="color" id="light-specular" value="#e6ffe6" autocomplete="off">
+      <input type="text" id="light-specular-value" value="#e6ffe6" autocomplete="off" disabled>
+    </p>
+    <p>
+      Light Dir X:
+      <input type="range" min="-30.0" max="30.0" id="light-posx" value="-1.0" autocomplete="off">
+      <input type="text" id="light-posx-value" value="-1" autocomplete="off" disabled>
+    </p>
+    <p>
+      Light Dir Y:
+      <input type="range" min="-30.0" max="30.0" id="light-posy" value="-1.0" autocomplete="off">
+      <input type="text" id="light-posy-value" value="-1" autocomplete="off" disabled>
+    </p>
+    <p>
+      Light Dir Z:
+      <input type="range" min="-30.0" max="30.0" id="light-posz" value="-5.0" autocomplete="off">
+      <input type="text" id="light-posz-value" value="-5" autocomplete="off" disabled>
+    </p>
+  </div>
   <!-- WebGL setup libraries -->
   <script src="./utils/webgl-init.js"></script>
   <script src="./utils/webgl-debug.js"></script>
@@ -25,43 +81,98 @@
 
   <!-- shader programs -->
   <script id="vertex-shader" type="notjs">#version 300 es
-    in vec4 a_position;
+    in vec3 a_position;
+    in vec3 a_normal;
 
     uniform mat4 u_model_matrix;
     uniform mat4 u_view_matrix;
     uniform mat4 u_projection_matrix;
+    uniform mat4 u_normal_matrix;   
+
+    uniform vec3 u_light_direction; 
+    uniform vec3 u_eye_position;
+
+    // light color properties
+    uniform vec3 u_light_ambient;
+    uniform vec3 u_light_diffuse;
+    uniform vec3 u_light_specular;
+
+    // material color properties
+    uniform vec3 u_material_ambient;
+    uniform vec3 u_material_diffuse;
+    uniform vec3 u_material_specular;
+    uniform float u_shininess;
+
+    // flags
+    uniform bool u_enable_ambient;
+    uniform bool u_enable_diffuse;
+    uniform bool u_enable_specular;
+
+    out vec4 v_color;
 
     void main() {
-      // produce camera coordinates using view matrix; after world coords
-      gl_Position = u_projection_matrix * u_view_matrix * u_model_matrix * a_position;
-    }
+      gl_PointSize = 9.0;
+      vec4 transformed_position = u_model_matrix * vec4(a_position, 1.0);
+      gl_Position = u_projection_matrix * u_view_matrix * transformed_position;
+
+      // factors of the final color [set to black]
+      vec3 ambient_color = vec3(0,0,0);
+      vec3 diffuse_color = vec3(0,0,0);
+      vec3 specular_color = vec3(0,0,0);
+
+      // common vectors
+      vec3 corrected_a_normal = vec3(u_normal_matrix * vec4(a_normal, 1.0));
+      vec3 normalized_a_normal = normalize(corrected_a_normal);
+      vec3 normalized_u_light_direction = normalize(u_light_direction);
+      
+      if(u_enable_ambient) {
+        ambient_color = u_light_ambient * u_material_ambient;
+      }
+
+      if(u_enable_diffuse) {
+        float lambert_coefficient = dot(-normalized_u_light_direction, normalized_a_normal);
+        lambert_coefficient = max(lambert_coefficient, 0.0);
+
+        diffuse_color = u_light_diffuse * u_material_diffuse * lambert_coefficient;
+      }
+
+      if(u_enable_specular) {
+        // compute vectors needed for specular color
+        vec3 reflect_direction = reflect(normalized_u_light_direction, normalized_a_normal);
+        vec3 normalized_reflect_direction = normalize(reflect_direction);
+        vec3 eye_direction = u_eye_position - vec3(transformed_position);
+        vec3 normalized_eye_direction = normalize(eye_direction);
+
+        float specular_coefficient = dot(-normalized_reflect_direction, normalized_eye_direction);
+        specular_coefficient = max(specular_coefficient, 0.0);
+        specular_coefficient = pow(specular_coefficient, u_shininess);
+        specular_color = u_light_specular * u_material_specular * specular_coefficient;
+      }
+
+
+      v_color = vec4(ambient_color+diffuse_color+specular_color,1.0);
+    } 
   </script>
 
   <script id="fragment-shader" type="notjs">#version 300 es
     precision mediump float;
 
-    uniform vec4 u_color;
+    in vec4 v_color;
 
     out vec4 outColor;
 
     void main() {
-      outColor = u_color;
+      outColor =  v_color;
     }
   </script>
 
-
-  <script>
-    var flagPerspective = true; // "global var"
-
-    const canvas = document.getElementById("master");
-
-    if(!canvas){
-      alert("Error: Canvas not found! Please try reloading the page and use a PC with the latest version of Chrome or Firefox.");
-    }
-
+  
+  <script> 
     function main() {
+      const canvas = document.getElementById("master");
 
-      const gl = initWebGL(canvas, true);
+
+      const gl = initWebGL(canvas, {}, true); 
       const vertexShaderSource = document.getElementById('vertex-shader').text;
       const fragmentShaderSource = document.getElementById('fragment-shader').text;
       const vertexShader = initShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
@@ -71,17 +182,40 @@
       gl.useProgram(program);
 
       const aPositionPointer = gl.getAttribLocation(program, 'a_position');
-      const aPointSizePointer = gl.getAttribLocation(program, 'a_point_size');
-      const uColorPointer = gl.getUniformLocation(program, 'u_color');
+      const aNormalPointer = gl.getAttribLocation(program, 'a_normal');
+
       const uModelMatrixPointer = gl.getUniformLocation(program, 'u_model_matrix');
       const uViewMatrixPointer = gl.getUniformLocation(program, 'u_view_matrix');
       const uProjectionMatrixPointer = gl.getUniformLocation(program, 'u_projection_matrix');
+      const uNormalMatrixPointer = gl.getUniformLocation(program, 'u_normal_matrix');
 
-      // initialize vertex data
+      const uLightDirectionPointer = gl.getUniformLocation(program, 'u_light_direction');
+      const uEyePositionPointer = gl.getUniformLocation(program, 'u_eye_position');
+
+      const uLightAmbientPointer = gl.getUniformLocation(program, 'u_light_ambient');
+      const uLightDiffusePointer = gl.getUniformLocation(program, 'u_light_diffuse');
+      const uLightSpecularPointer = gl.getUniformLocation(program, 'u_light_specular');
+
+      const uMaterialAmbientPointer = gl.getUniformLocation(program, 'u_material_ambient');
+      const uMaterialDiffusePointer = gl.getUniformLocation(program, 'u_material_diffuse');
+      const uMaterialSpecularPointer = gl.getUniformLocation(program, 'u_material_specular');
+      const uMaterialShininessPointer = gl.getUniformLocation(program, 'u_shininess');
+
+      const uEnableAmbientPointer = gl.getUniformLocation(program, 'u_enable_ambient');
+      const uEnableDiffusePointer = gl.getUniformLocation(program, 'u_enable_diffuse');
+      const uEnableSpecularPointer = gl.getUniformLocation(program, 'u_enable_specular');
+      
+      gl.enable(gl.DEPTH_TEST);
+      
+      gl.enableVertexAttribArray(aPositionPointer);
+      gl.enableVertexAttribArray(aNormalPointer);
+      
+      // glmatrix shortcuts
+      const mat4 = glMatrix.mat4;
+      const toRadian = glMatrix.glMatrix.toRadian;
 
       // calculate vertex constants
-      let size = 0.4;
-      let pointsPerFace = 9;
+      let size = 1;
       const PHI = (1.0 + Math.sqrt(5.0)) / 2.0;
 
       let a = 1 * size;
@@ -89,185 +223,356 @@
       let c = ((1 * 2.0) - PHI) * size;
 
       // 12 faces with 5 vertices each
-      dodeFaces = [
-          [c,0,a, -c,0,a, -b,b,b, 0,a,c, b,b,b],
-          [-c,0,a, c,0,a, b,-b,b, 0,-a,c, -b,-b,b],
-          [c,0,-a, -c,0,-a, -b,-b,-b, 0,-a,-c, b,-b,-b],
-          [-c,0,-a, c,0,-a, b,b,-b, 0,a,-c, -b,b,-b],
-          [0,a,-c, 0,a,c, b,b,b, a,c,0, b,b,-b],
-          [0,a,c, 0,a,-c, -b,b,-b, -a,c,0, -b,b,b],
-          [0,-a,-c, 0,-a,c, -b,-b,b, -a,-c,0, -b,-b,-b],
-          [0,-a,c, 0,-a,-c, b,-b,-b, a,-c,0, b,-b,b],
-          [a,c,0, a,-c,0, b,-b,b, c,0,a, b,b,b],
-          [a,-c,0, a,c,0, b,b,-b, c,0,-a, b,-b,-b],
-          [-a,c,0, -a,-c,0, -b,-b,-b, -c,0,-a, -b,b,-b],
-          [-a,-c,0, -a,c,0, -b,b,b, -c,0,a, -b,-b,b]
+      let dodeFaces = [
+          c,0,a, -c,0,a, -b,b,b, 0,a,c, b,b,b,
+          -c,0,a, c,0,a, b,-b,b, 0,-a,c, -b,-b,b,
+          c,0,-a, -c,0,-a, -b,-b,-b, 0,-a,-c, b,-b,-b,
+          -c,0,-a, c,0,-a, b,b,-b, 0,a,-c, -b,b,-b,
+          0,a,-c, 0,a,c, b,b,b, a,c,0, b,b,-b,
+          0,a,c, 0,a,-c, -b,b,-b, -a,c,0, -b,b,b,
+          0,-a,-c, 0,-a,c, -b,-b,b, -a,-c,0, -b,-b,-b,
+          0,-a,c, 0,-a,-c, b,-b,-b, a,-c,0, b,-b,b,
+          a,c,0, a,-c,0, b,-b,b, c,0,a, b,b,b,
+          a,-c,0, a,c,0, b,b,-b, c,0,-a, b,-b,-b,
+          -a,c,0, -a,-c,0, -b,-b,-b, -c,0,-a, -b,b,-b,
+          -a,-c,0, -a,c,0, -b,b,b, -c,0,a, -b,-b,b
       ];
 
-      // colors for each face
-      let dodeColors = [
-          [1,0,0,1],    // red
-          [0,1,0,1],    // green
-          [0,0,1,1],    // blue
-          [1,1,0,1],    // yellow
-          [1,0,1,1],    // magenta
-          [0,1,1,1],    // cyan
-
-          [.7,.3,.3,1],
-          [.3,.7,.3,1],
-          [.3,.3,.7,1],
-          [.7,.7,.3,1],
-          [.7,.3,.7,1],
-          [.3,.7,.7,1],
+      let isClockwise = [
+          false, false,
+          false, false,
+           true,  true,
+           true,  true,
+          false, false,
+          false, false
       ];
 
-      // color for background
-      gl.clearColor(0, 0, 0, 1);
+      let vertexData = [];
+      let indices = [];
+      for (let i = 0; i < 12; i++){
+        //  compute the normal for each face
+        var vecU = [];
+        var vecV = [];
+        if (isClockwise[i]) {
+          // vecU = triangle.P1 - triangle.P0
+          // vecV = triangle.p2 - triangle.P0
+          vecU.push(dodeFaces[15*i + 3] - dodeFaces[15*i + 0], 
+                    dodeFaces[15*i + 4] - dodeFaces[15*i + 1],
+                    dodeFaces[15*i + 5] - dodeFaces[15*i + 2]
+                    );
+          vecV.push(dodeFaces[15*i + 6] - dodeFaces[15*i + 0], 
+                    dodeFaces[15*i + 7] - dodeFaces[15*i + 1],
+                    dodeFaces[15*i + 8] - dodeFaces[15*i + 2]
+                    );
+        }
+        else {
+          vecU.push(dodeFaces[15*i + 3] - dodeFaces[15*i + 6], 
+                    dodeFaces[15*i + 4] - dodeFaces[15*i + 7],
+                    dodeFaces[15*i + 5] - dodeFaces[15*i + 8]
+                    );
+          vecV.push(dodeFaces[15*i + 0] - dodeFaces[15*i + 6], 
+                    dodeFaces[15*i + 1] - dodeFaces[15*i + 7],
+                    dodeFaces[15*i + 2] - dodeFaces[15*i + 8]
+                    );
+        }
+        // Nx = UyVz - UzVy, Ny = UzVx - UxVz, Nz = UxVy - UyVx;
+        var normalx = vecU[1]*vecV[2] - vecU[2]*vecV[1];
+        var normaly = vecU[2]*vecV[0] - vecU[0]*vecV[2];
+        var normalz = vecU[0]*vecV[1] - vecU[1]*vecV[0];
 
-      // generate shape vertices
-      // triangles per face: [0, 1, 2],   [0, 3, 2],   [0, 3, 4]
-      let dodeVertices = [];
-      for (let i = 0; i < dodeFaces.length; i++){
-            // 0, 1, 2
-            dodeVertices.push(dodeFaces[i][0],
-                              dodeFaces[i][1],
-                              dodeFaces[i][2],
-                              1.0);
-            dodeVertices.push(dodeFaces[i][3],
-                              dodeFaces[i][4],
-                              dodeFaces[i][5],
-                              1.0);
-            dodeVertices.push(dodeFaces[i][6],
-                              dodeFaces[i][7],
-                              dodeFaces[i][8],
-                              1.0);
-            // 0, 3, 2
-            dodeVertices.push(dodeFaces[i][0],
-                              dodeFaces[i][1],
-                              dodeFaces[i][2],
-                              1.0);
-            dodeVertices.push(dodeFaces[i][9],
-                              dodeFaces[i][10],
-                              dodeFaces[i][11],
-                              1.0);
-            dodeVertices.push(dodeFaces[i][6],
-                              dodeFaces[i][7],
-                              dodeFaces[i][8],
-                              1.0);
-            // 0, 3, 4
-            dodeVertices.push(dodeFaces[i][0],
-                              dodeFaces[i][1],
-                              dodeFaces[i][2],
-                              1.0);
-            dodeVertices.push(dodeFaces[i][9],
-                              dodeFaces[i][10],
-                              dodeFaces[i][11],
-                              1.0);
-            dodeVertices.push(dodeFaces[i][12],
-                              dodeFaces[i][13],
-                              dodeFaces[i][14],
-                              1.0);
+        // push each face's vertices along with normal
+        for (j = 0; j < 5; j ++){
+            vertexData.push(dodeFaces[15*i + 3*j + 0]);
+            vertexData.push(dodeFaces[15*i + 3*j + 1]);
+            vertexData.push(dodeFaces[15*i + 3*j + 2]);
+            vertexData.push(normalx, normaly, normalz);
+        }
+
+        // push indices for this face
+        indices.push(5*i, 5*i + 1, 5*i + 2,
+                     5*i, 5*i + 2, 5*i + 3,
+                     5*i, 5*i + 3, 5*i + 4);
+
       }
 
-      // load vertex data to gpu
-      let dodeBuffer = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, dodeBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(dodeVertices), gl.STATIC_DRAW);
-      gl.vertexAttribPointer(aPositionPointer, 4, gl.FLOAT, false, 0, 0);
-      gl.enableVertexAttribArray(aPositionPointer);
+      // create buffer for vertices
+      const vbuffer = gl.createBuffer(); 
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexData), gl.STATIC_DRAW);
       gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
-      // enable depth test
-      gl.enable(gl.DEPTH_TEST);
+      // create another buffer for indices
+      const ibuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibuffer);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint8Array(indices), gl.STATIC_DRAW)
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
 
-      // define degrees' initial value. and degree increment value
-      var degrees = 0;
-      const DEGREE_STEP = 3;
+      // set up transformations
+      const uView = mat4.lookAt(mat4.create(), [1,1,7,1.0], [0,0,0,1], [0,1,0,0]);
+      const uProj = mat4.perspective(mat4.create(), toRadian(30),canvas.width/canvas.height,1,90);
+      let uModel = mat4.create()
+      let uNormal = mat4.create();
+      mat4.invert(uNormal, uModel);
+      mat4.transpose(uNormal, uNormal);
+      
+      // clear canvas
+      gl.clearColor(0, 0, 0, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-      animate();
-
-      function animate(){
-          // clear frame
-          gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-          // setup model matrix and rotate it
-          let modelMatrix = glMatrix.mat4.create();
-          glMatrix.mat4.rotateX(modelMatrix, modelMatrix,
-                                glMatrix.glMatrix.toRadian(degrees*0.5));
-          glMatrix.mat4.rotateY(modelMatrix, modelMatrix,
-                                glMatrix.glMatrix.toRadian(degrees*0.3));
-          glMatrix.mat4.rotateZ(modelMatrix, modelMatrix,
-                                glMatrix.glMatrix.toRadian(degrees&0.2));
-
-          // setup view matrix
-          let viewMatrix = glMatrix.mat4.create();
-          glMatrix.mat4.lookAt(viewMatrix,[0,0,1,1],[0,0,0,1],[0,1,0,0]);
-
-          // setup projection matrix
-          let projectionMatrix = glMatrix.mat4.create();
-
-          if (flagPerspective == true){
-              // parameters to set perspective projection
-              let fov = glMatrix.glMatrix.toRadian(460); // field of view
-              let aspectRatio = canvas.width/canvas.height;
-              let nearClippingPlane = 0.01;
-              let farClippingPlane = 100;
-              glMatrix.mat4.perspective(projectionMatrix, fov, aspectRatio, nearClippingPlane, farClippingPlane);
-          }
-          else{
-              // parameters to set parallel projection
-              let left = -1;
-              let right = 1;
-              let bottom = -1;
-              let top = 1;
-              let near = 0;
-              let far =1;
-              glMatrix.mat4.ortho(projectionMatrix, left, right, bottom, top, near, far);
-          }
-
-          // load uniforms
-          gl.uniformMatrix4fv(uModelMatrixPointer, false, new Float32Array(modelMatrix));
-          gl.uniformMatrix4fv(uViewMatrixPointer, false, new Float32Array(viewMatrix));
-          gl.uniformMatrix4fv(uProjectionMatrixPointer, false, new Float32Array(projectionMatrix));
-
-          // draw figures
-
-          for (let i = 0; i < dodeFaces.length; i++){
-              // draw one face at a time
-              gl.uniform4fv(uColorPointer, dodeColors[i%12]);
-              gl.bindBuffer(gl.ARRAY_BUFFER, dodeBuffer);
-              gl.drawArrays(gl.TRIANGLES, i*pointsPerFace, pointsPerFace);
-          }
-
-          degrees = degrees + 2.67;
-
-          requestAnimFrame(animate);
+      let object = {
+        "vbuffer": vbuffer,
+        "ibuffer": ibuffer,
+        "matrix" : {
+          "model": uModel,
+          "view": uView,
+          "proj": uProj,
+          "normal": uNormal,
+        },
+        "eyePosition": [1,1,7], // see view matrix
+        "light": {
+          "ambient": [0.3,0.3,0.3],
+          "diffuse": [0,1.0,1.0],
+          "specular": [0.9,1.0,0.9],
+          "direction": [-1,-1,-5],
+        },
+        "material" : {
+          "ambient": [0,0.5,0],
+          "diffuse": [0,1,0],
+          "specular": [0.9,1,0.9],
+          "shininess": 5.0,
+        },
+        "flags": {
+          "ambient": false,
+          "diffuse": true,
+          "specular": false,
+          "animate": true,
+        },
+        "nComponents": 3,
+        "nIndices": indices.length
       }
+
+      let angleOfRotation = 0;
+      var animateID;
+      drawObject(object);
+
+      if (object.flags.animate == true)
+          animate();
+
+      function animate() {
+        // compute model matrix using angleOfRotation
+        uModel = mat4.create()
+        mat4.rotateX(uModel, uModel, toRadian(angleOfRotation));
+        mat4.rotateY(uModel, uModel, toRadian(angleOfRotation));
+        mat4.rotateZ(uModel, uModel, toRadian(angleOfRotation));
+
+        // compute normal matrix
+        uNormal = mat4.invert(uNormal, uModel);
+        uNormal = mat4.transpose(uNormal, uNormal);
+
+        // set object parameters
+        object.matrix.model = uModel;
+        object.matrix.normal = uNormal;
+
+        drawObject(object);
+
+        // update angle for next iter
+        angleOfRotation = (angleOfRotation + 1) % 360;
+        animateID = requestAnimFrame(animate);
+      }
+
+      function drawObject(object, primitiveType=gl.TRIANGLES) {
+        // clear canvas
+        gl.clearColor(0, 0, 0, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        // set transformations
+        gl.uniformMatrix4fv(uModelMatrixPointer, false, object.matrix.model);
+        gl.uniformMatrix4fv(uViewMatrixPointer, false, object.matrix.view);
+        gl.uniformMatrix4fv(uProjectionMatrixPointer, false, object.matrix.proj);
+        gl.uniformMatrix4fv(uNormalMatrixPointer, false, object.matrix.normal);
+          
+        // set light parameters
+        gl.uniform3fv(uLightAmbientPointer, object.light.ambient);
+        gl.uniform3fv(uLightDiffusePointer, object.light.diffuse);
+        gl.uniform3fv(uLightSpecularPointer, object.light.specular);
+        gl.uniform3fv(uLightDirectionPointer, object.light.direction);
+
+        // set material properties
+        gl.uniform3fv(uMaterialAmbientPointer, object.material.ambient);
+        gl.uniform3fv(uMaterialDiffusePointer, object.material.diffuse);
+        gl.uniform3fv(uMaterialSpecularPointer, object.material.specular);
+        gl.uniform1f(uMaterialShininessPointer, object.material.shininess);
+
+        // set flags
+        gl.uniform1i(uEnableAmbientPointer, object.flags.ambient);
+        gl.uniform1i(uEnableDiffusePointer, object.flags.diffuse);
+        gl.uniform1i(uEnableSpecularPointer, object.flags.specular);
+
+        // bind vertices
+        gl.bindBuffer(gl.ARRAY_BUFFER, object.vbuffer);
+        // tell GL how to get vertex positions from buffer
+        gl.vertexAttribPointer(aPositionPointer, 3, gl.FLOAT, false, 6*4, 0);
+        gl.vertexAttribPointer(aNormalPointer, 3, gl.FLOAT, false, 6*4, 3*4);
+        // tell GL how to get normal vectors from buffer
+
+        // bind indices
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, object.ibuffer);
+        // draw triangles based on indices array
+        gl.drawElements(primitiveType, object.nIndices, gl.UNSIGNED_BYTE, 0)
+        
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+      }
+
+      function hexToFloatColor(hexColor) {
+        newRed   = parseInt(hexColor.substr(1,2), 16) / 255.0;
+        newGreen = parseInt(hexColor.substr(3,4), 16) / 255.0 / 255.0 ;
+        newBlue  = parseInt(hexColor.substr(5,6), 16) / 255.0;
+        return [newRed, newGreen, newBlue];
+      }
+
+      function updateObject(c) {
+        return function(){
+          let uiElement = document.getElementById(c);
+          let uiDisplay = document.getElementById(c + "-value");
+          switch(c) {
+            case "material-ambient":
+                var hexString = uiElement.value;
+                uiDisplay.value = hexString;
+                object.material.ambient = hexToFloatColor(hexString);
+              break;
+            case "material-diffuse":
+                var hexString = uiElement.value;
+                uiDisplay.value = hexString;
+                object.material.diffuse = hexToFloatColor(hexString);
+              break;
+            case "material-specular":
+                var hexString = uiElement.value;
+                uiDisplay.value = hexString;
+                object.material.specular = hexToFloatColor(hexString);
+              break;
+            case "material-shininess":
+                var newShine = uiElement.value;
+                uiDisplay.value = newShine;
+                object.material.shininess = newShine;
+              break;
+            case "ambient-flag":
+                object.flags.ambient = uiElement.checked;
+              break;
+            case "diffuse-flag":
+                object.flags.diffuse = uiElement.checked;
+              break;
+            case "specular-flag":
+                object.flags.specular = uiElement.checked;
+              break;
+            case "animate-flag":
+                if (uiElement.checked) {
+                  if (object.flags.animate == false) {
+                    object.flags.animate = true;
+                    animate();
+                  }
+                }
+                else {
+                  object.flags.animate = false;
+                  cancelAnimationFrame(animateID);
+                }
+              break;
+            case "light-ambient":
+                var hexString = uiElement.value;
+                uiDisplay.value = hexString;
+                object.light.ambient = hexToFloatColor(hexString);
+              break;
+            case "light-diffuse":
+                var hexString = uiElement.value;
+                uiDisplay.value = hexString;
+                object.light.diffuse = hexToFloatColor(hexString);
+              break;
+            case "light-specular":
+                var hexString = uiElement.value;
+                uiDisplay.value = hexString;
+                object.light.specular = hexToFloatColor(hexString);
+              break;
+            case "light-posx":
+                var newX = uiElement.value;
+                uiDisplay.value = newX;
+                object.light.direction[0] = newX;
+                break;
+            case "light-posy":
+                var newY = uiElement.value;
+                uiDisplay.value = newY;
+                object.light.direction[1] = newY;
+                break;
+            case "light-posz":
+                var newZ = uiElement.value;
+                uiDisplay.value = newZ;
+                object.light.direction[2] = newZ;
+                break;
+          }
+
+          drawObject(object);
+        }
+      }
+
+        function readKey(e) {
+            switch(e.key) {
+              case "W":
+              case "w":
+                  object.matrix.model = mat4.rotateX(object.matrix.model, object.matrix.model, toRadian(-2));
+                  break;
+              case "S":
+              case "s":
+                  object.matrix.model = mat4.rotateX(object.matrix.model, object.matrix.model, toRadian(2));
+                  break;
+              case "A":
+              case "a":
+                  object.matrix.model = mat4.rotateY(object.matrix.model, object.matrix.model, toRadian(-2));
+                  break;
+              case "D":
+              case "d":
+                  object.matrix.model = mat4.rotateY(object.matrix.model, object.matrix.model, toRadian(2));
+                  break;
+            }
+
+            drawObject(object);
+        }
+
+      document.getElementById("material-ambient")
+        .addEventListener("change", updateObject("material-ambient"));
+      document.getElementById("material-diffuse")
+        .addEventListener("change", updateObject("material-diffuse"));
+      document.getElementById("material-specular")
+        .addEventListener("change", updateObject("material-specular"));
+      document.getElementById("material-shininess")
+        .addEventListener("change", updateObject("material-shininess"));
+      document.getElementById("ambient-flag")
+        .addEventListener("change", updateObject("ambient-flag"));
+      document.getElementById("diffuse-flag")
+        .addEventListener("change", updateObject("diffuse-flag"));
+      document.getElementById("specular-flag")
+        .addEventListener("change", updateObject("specular-flag"));
+      document.getElementById("animate-flag")
+        .addEventListener("change", updateObject("animate-flag"));
+      document.getElementById("light-ambient")
+        .addEventListener("change", updateObject("light-ambient"));
+      document.getElementById("light-diffuse")
+        .addEventListener("change", updateObject("light-diffuse"));
+      document.getElementById("light-specular")
+        .addEventListener("change", updateObject("light-specular"));
+      document.getElementById("light-posx")
+        .addEventListener("change", updateObject("light-posx"));
+      document.getElementById("light-posy")
+        .addEventListener("change", updateObject("light-posy"));
+      document.getElementById("light-posz")
+        .addEventListener("change", updateObject("light-posz"));
+      document.addEventListener("keydown", e => { readKey(e); });
+
     }
 
-    function changeToPerspective(boolValue){
-        flagPerspective = boolValue;
-    }
 
-    function pageLoaded(){
-	try{
-		glContext = canvas.getContext("webgl2");
-	} catch(x){
-		glContext = null;
-	}
+    
+    main()
+  
 
-	if(glContext){
-		// do nothing
-	} else if(window.WebGL2RenderingContext){
-		alert("Error: WebGL2 is disabled or unavailable. Ensure your browser is up-to-date.");
-	} else{
-		alert("Error: WebGL2 is not supported by your browser. Please use a PC with the latest version of Chrome or Firefox.");
-	}
-    }
-
-    pageLoaded();
-    // call the main program
-    main();
   </script>
 </body>
 </html>
